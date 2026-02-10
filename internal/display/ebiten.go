@@ -3,6 +3,7 @@ package display
 import (
 	"encoding/json"
 	"image"
+	"math"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/junsooki/AirMac/internal/input"
 )
+
+// InputCallback is called when the user generates an input event.
+type InputCallback func(eventJSON []byte)
 
 // EbitenDisplay renders the remote screen using Ebitengine and captures input.
 type EbitenDisplay struct {
@@ -81,20 +85,12 @@ func (d *EbitenDisplay) Draw(screen *ebiten.Image) {
 	}
 	d.ebitenImage.WritePixels(frame.Pix)
 
-	// Scale to fit window.
 	sw, sh := screen.Bounds().Dx(), screen.Bounds().Dy()
 	fw, fh := float64(frame.Bounds().Dx()), float64(frame.Bounds().Dy())
-	scaleX := float64(sw) / fw
-	scaleY := float64(sh) / fh
-	scale := scaleX
-	if scaleY < scaleX {
-		scale = scaleY
-	}
+	scale, offsetX, offsetY := aspectFitTransform(float64(sw), float64(sh), fw, fh)
 
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(scale, scale)
-	offsetX := (float64(sw) - fw*scale) / 2
-	offsetY := (float64(sh) - fh*scale) / 2
 	op.GeoM.Translate(offsetX, offsetY)
 	screen.DrawImage(d.ebitenImage, op)
 }
@@ -108,7 +104,6 @@ func (d *EbitenDisplay) Layout(outsideWidth, outsideHeight int) (int, int) {
 func (d *EbitenDisplay) captureMouseInput() {
 	mx, my := ebiten.CursorPosition()
 
-	// Convert window coordinates to remote screen coordinates.
 	sw, sh := ebiten.WindowSize()
 	d.mu.Lock()
 	frame := d.frame
@@ -119,15 +114,7 @@ func (d *EbitenDisplay) captureMouseInput() {
 
 	fw := float64(frame.Bounds().Dx())
 	fh := float64(frame.Bounds().Dy())
-	scaleX := float64(sw) / fw
-	scaleY := float64(sh) / fh
-	scale := scaleX
-	if scaleY < scaleX {
-		scale = scaleY
-	}
-	offsetX := (float64(sw) - fw*scale) / 2
-	offsetY := (float64(sh) - fh*scale) / 2
-
+	scale, offsetX, offsetY := aspectFitTransform(float64(sw), float64(sh), fw, fh)
 	remoteX := (float64(mx) - offsetX) / scale
 	remoteY := (float64(my) - offsetY) / scale
 
@@ -213,6 +200,14 @@ func currentModifiers() uint8 {
 		m |= 8
 	}
 	return m
+}
+
+// aspectFitTransform returns scale and offsets to fit frame into view with letterboxing.
+func aspectFitTransform(viewW, viewH, frameW, frameH float64) (scale, offsetX, offsetY float64) {
+	scale = math.Min(viewW/frameW, viewH/frameH)
+	offsetX = (viewW - frameW*scale) / 2
+	offsetY = (viewH - frameH*scale) / 2
+	return
 }
 
 // ebitenKeyToMacKeyCode maps Ebitengine key codes to macOS virtual key codes.

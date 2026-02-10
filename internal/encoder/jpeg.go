@@ -32,12 +32,3 @@ func (e *JPEGEncoder) Encode(img *image.RGBA) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (e *JPEGEncoder) SetQuality(quality int) {
-	if quality < 1 {
-		quality = 1
-	}
-	if quality > 100 {
-		quality = 100
-	}
-	e.quality = quality
-}

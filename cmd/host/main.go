@@ -14,6 +14,7 @@ import (
 	"github.com/junsooki/AirMac/internal/peer"
 	"github.com/junsooki/AirMac/internal/permissions"
 	"github.com/junsooki/AirMac/internal/signaling"
+	"github.com/junsooki/AirMac/internal/transport"
 )
 
 func main() {
@@ -86,8 +87,7 @@ func main() {
 				return
 			}
 
-			// Start streaming frames.
-			go streamFrames(cap, enc, hostPeer)
+			go streamFrames(cap.Frames(), enc, hostPeer.Transport())
 		},
 		OnICECandidate: func(from string, payload json.RawMessage) {
 			if hostPeer != nil {
@@ -124,15 +124,14 @@ func main() {
 	}
 }
 
-func streamFrames(cap capture.Capturer, enc encoder.Encoder, h *peer.Host) {
-	for frame := range cap.Frames() {
+func streamFrames(frames <-chan *capture.Frame, enc *encoder.JPEGEncoder, t *transport.DataChannelTransport) {
+	for frame := range frames {
 		data, err := enc.Encode(frame.Image)
 		if err != nil {
 			log.Printf("encode frame: %v", err)
 			continue
 		}
-		if err := h.Transport().SendFrame(data); err != nil {
-			// DataChannel not open yet or closed — skip silently.
+		if err := t.SendFrame(data); err != nil {
 			continue
 		}
 	}

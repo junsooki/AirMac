@@ -87,53 +87,41 @@ wss.on('connection', (ws, req) => {
         }
     }
 
-    function handleListHosts(ws) {
-        const hosts = Array.from(clients.entries())
+    function getHostList() {
+        return Array.from(clients.entries())
             .filter(([id]) => id.startsWith('host-'))
             .map(([id, client]) => ({ id, online: client.readyState === WebSocket.OPEN }));
-        ws.send(JSON.stringify({ type: 'hosts', list: hosts }));
+    }
+
+    function broadcastToControllers(msg) {
+        const data = JSON.stringify(msg);
+        clients.forEach((client, id) => {
+            if (!id.startsWith('host-') && client.readyState === WebSocket.OPEN) {
+                client.send(data);
+            }
+        });
+    }
+
+    function handleListHosts(ws) {
+        ws.send(JSON.stringify({ type: 'hosts', list: getHostList() }));
     }
 
     function handleSignaling(ws, message) {
-        const targetId = message.target;
-        const targetWs = clients.get(targetId);
-
+        const targetWs = clients.get(message.target);
         if (!targetWs || targetWs.readyState !== WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'error',
-                message: `Target ${targetId} not found or not connected`
-            }));
+            ws.send(JSON.stringify({ type: 'error', message: `Target ${message.target} not found or not connected` }));
             return;
         }
-
-        targetWs.send(JSON.stringify({
-            type: message.type,
-            from: clientId,
-            payload: message.payload,
-            timestamp: Date.now()
-        }));
-        console.log(`[${new Date().toISOString()}] Relayed ${message.type} from ${clientId} to ${targetId}`);
+        targetWs.send(JSON.stringify({ type: message.type, from: clientId, payload: message.payload, timestamp: Date.now() }));
+        console.log(`[${new Date().toISOString()}] Relayed ${message.type} from ${clientId} to ${message.target}`);
     }
 
     function broadcastHostList() {
-        const hosts = Array.from(clients.entries())
-            .filter(([id]) => id.startsWith('host-'))
-            .map(([id, client]) => ({ id, online: client.readyState === WebSocket.OPEN }));
-        const msg = JSON.stringify({ type: 'hosts-updated', list: hosts });
-        clients.forEach((client, id) => {
-            if (!id.startsWith('host-') && client.readyState === WebSocket.OPEN) {
-                client.send(msg);
-            }
-        });
+        broadcastToControllers({ type: 'hosts-updated', list: getHostList() });
     }
 
     function broadcastHostDisconnected(hostId) {
-        const msg = JSON.stringify({ type: 'host-disconnected', hostId });
-        clients.forEach((client, id) => {
-            if (!id.startsWith('host-') && client.readyState === WebSocket.OPEN) {
-                client.send(msg);
-            }
-        });
+        broadcastToControllers({ type: 'host-disconnected', hostId });
     }
 });
 

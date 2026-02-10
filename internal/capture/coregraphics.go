@@ -85,16 +85,18 @@ import "C"
 import (
 	"fmt"
 	"image"
+	"sync"
 	"time"
 	"unsafe"
 )
 
-// CGCapturer implements Capturer using CoreGraphics.
+// CGCapturer captures the screen using CoreGraphics.
 type CGCapturer struct {
 	displayID C.CGDirectDisplayID
 	fps       int
 	frameCh   chan *Frame
 	stopCh    chan struct{}
+	stopOnce  sync.Once
 	running   bool
 }
 
@@ -135,11 +137,10 @@ func (c *CGCapturer) Start() error {
 }
 
 func (c *CGCapturer) Stop() {
-	if !c.running {
-		return
-	}
-	c.running = false
-	close(c.stopCh)
+	c.stopOnce.Do(func() {
+		c.running = false
+		close(c.stopCh)
+	})
 }
 
 func (c *CGCapturer) Frames() <-chan *Frame {
@@ -190,8 +191,6 @@ func (c *CGCapturer) capture() *Frame {
 
 	return &Frame{
 		Image:     img,
-		Width:     w,
-		Height:    h,
 		Timestamp: time.Now(),
 	}
 }

@@ -1,0 +1,16 @@
+{
+  "name": "airmac-signaling",
+  "version": "1.0.0",
+  "description": "Signaling server for AirMac remote desktop",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
